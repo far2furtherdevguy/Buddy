@@ -1,7 +1,7 @@
 name: buddy_assistant
 description: Always listening AI assistant (Vosk wake word)
 publish_to: 'none'
-version: 2.0.0+2
+version: 2.0.1+3
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -11,9 +11,11 @@ dependencies:
     sdk: flutter
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.2
-  google_generative_ai: ^0.4.6
   flutter_foreground_task: ^6.0.0
-  permission_handler: ^11.3.1
+  # vosk_flutter pins permission_handler ^10.2.0 and http ^0.13.5,
+  # so these two must stay on those lines or pub get fails.
+  permission_handler: ^10.4.5
+  http: ^0.13.6
   vosk_flutter: ^0.3.48
 
 flutter:
