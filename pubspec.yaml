@@ -1,0 +1,22 @@
+name: buddy_assistant
+description: Always listening AI assistant (Vosk wake word)
+publish_to: 'none'
+version: 2.0.0+2
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.2
+  google_generative_ai: ^0.4.6
+  flutter_foreground_task: ^6.0.0
+  permission_handler: ^11.3.1
+  vosk_flutter: ^0.3.48
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/models/
