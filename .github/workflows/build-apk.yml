@@ -31,6 +31,7 @@ jobs:
             flutter create --platforms=android --project-name buddy_assistant .
             cp /tmp/main.dart lib/main.dart
             cp /tmp/pubspec.yaml pubspec.yaml
+            rm -rf test
           fi
 
       - name: Download Vosk model
@@ -43,12 +44,13 @@ jobs:
           test "$SIZE" -gt 10000000
           unzip -tq assets/models/vosk-model-small-en-us-0.15.zip
 
-      - name: Patch AndroidManifest
-        run: python3 tools/patch_manifest.py
+      - name: Patch Android project
+        run: python3 tools/patch_android.py
 
-      - run: flutter pub get
+      - name: Get dependencies
+        run: flutter pub get
 
-      # --no-shrink: R8 can strip JNA classes that Vosk needs at runtime
+      # --no-shrink: R8 can strip the JNA classes Vosk needs at runtime
       - name: Build APK
         run: flutter build apk --release --no-shrink --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
