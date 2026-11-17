@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vosk_flutter/vosk_flutter.dart' as vosk;
@@ -11,6 +11,10 @@ import 'package:vosk_flutter/vosk_flutter.dart' as vosk;
 // Injected at build time: flutter build apk --dart-define=GEMINI_API_KEY=xxx
 const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 const String wakePhrase = 'hey buddy';
+const String geminiModel = 'gemini-2.5-flash';
+const String systemPrompt =
+    'You are Buddy, a helpful voice assistant. Plain text only, no markdown. '
+    'Keep answers short, max 2 sentences, conversational.';
 // Downloaded into assets/models/ by the GitHub Actions workflow.
 const String voskModelAsset = 'assets/models/vosk-model-small-en-us-0.15.zip';
 
@@ -51,7 +55,6 @@ class _AssistantPageState extends State<AssistantPage> {
   // Command capture (Android speech recognizer, used only after the wake word)
   final SpeechToText _stt = SpeechToText();
   final FlutterTts _tts = FlutterTts();
-  late final GenerativeModel _gemini;
 
   // Wake word (Vosk, offline, no beeps)
   final vosk.VoskFlutterPlugin _vosk = vosk.VoskFlutterPlugin.instance();
@@ -66,11 +69,11 @@ class _AssistantPageState extends State<AssistantPage> {
   bool _running = false;
   bool _busy = false; // handling a wake word
   Completer<String>? _cmdCompleter;
+  DateTime _ignoreWakeUntil = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
     super.initState();
-    _gemini = GenerativeModel(model: 'gemini-2.5-flash', apiKey: geminiApiKey);
     _tts.setLanguage('en-US');
     _tts.setSpeechRate(0.5);
     _tts.awaitSpeakCompletion(true);
@@ -181,6 +184,7 @@ class _AssistantPageState extends State<AssistantPage> {
       return;
     }
     if (text.isEmpty) return;
+    if (DateTime.now().isBefore(_ignoreWakeUntil)) return;
     if (mounted && !_busy) setState(() => _lastHeard = text);
     if (text.contains(wakePhrase)) _onWake();
   }
@@ -206,6 +210,8 @@ class _AssistantPageState extends State<AssistantPage> {
       if (_running) {
         try {
           await Future.delayed(const Duration(milliseconds: 300));
+          _ignoreWakeUntil = DateTime.now().add(const Duration(milliseconds: 1200));
+          await _speech?.reset();
           await _speech?.start();
         } catch (_) {}
         _setStatus('Say "Hey Buddy"...');
@@ -239,14 +245,54 @@ class _AssistantPageState extends State<AssistantPage> {
 
   Future<String> _askGemini(String prompt) async {
     try {
-      final res = await _gemini
-          .generateContent([
-            Content.text(
-                'You are Buddy, a helpful voice assistant. Plain text only, no markdown. '
-                'Keep answers short, max 3 sentences, conversational. User said: $prompt')
-          ])
+      final uri = Uri.parse(
+          'https://generativelanguage.googleapis.com/v1beta/models/$geminiModel:generateContent');
+      final res = await http
+          .post(
+            uri,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': geminiApiKey,
+            },
+            body: jsonEncode({
+              'systemInstruction': {
+                'parts': [
+                  {'text': systemPrompt}
+                ]
+              },
+              'contents': [
+                {
+                  'role': 'user',
+                  'parts': [
+                    {'text': prompt}
+                  ]
+                }
+              ],
+              'generationConfig': {
+                'maxOutputTokens': 300,
+                'temperature': 0.7,
+                'thinkingConfig': {'thinkingBudget': 0},
+              },
+            }),
+          )
           .timeout(const Duration(seconds: 20));
-      final text = (res.text ?? '').replaceAll(RegExp(r'[*#_`]'), '').trim();
+
+      if (res.statusCode == 429) {
+        return "I'm being rate limited. Try again in a minute.";
+      }
+      if (res.statusCode == 400 || res.statusCode == 403) {
+        return 'There is a problem with the API key.';
+      }
+      if (res.statusCode != 200) {
+        return 'Sorry, I had a problem connecting. Try again.';
+      }
+      final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final parts = (data['candidates'] as List).first['content']['parts'] as List;
+      final text = parts
+          .map((p) => (p['text'] ?? '') as String)
+          .join(' ')
+          .replaceAll(RegExp(r'[*#_`]'), '')
+          .trim();
       return text.isEmpty ? "Sorry, I didn't get that." : text;
     } catch (e) {
       return 'Sorry, I had a problem connecting. Try again.';
