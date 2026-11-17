@@ -1,7 +1,7 @@
 name: buddy_assistant
 description: Always listening AI assistant (Vosk wake word)
 publish_to: 'none'
-version: 2.0.1+3
+version: 2.0.2+4
 
 environment:
   sdk: '>=3.3.0 <4.0.0'
@@ -9,14 +9,17 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  speech_to_text: ^7.0.0
-  flutter_tts: ^4.2.2
-  flutter_foreground_task: ^6.0.0
-  # vosk_flutter pins permission_handler ^10.2.0 and http ^0.13.5,
-  # so these two must stay on those lines or pub get fails.
-  permission_handler: ^10.4.5
-  http: ^0.13.6
-  vosk_flutter: ^0.3.48
+  # ALL EXACT PINS ON PURPOSE. Newer releases of these plugins need a newer
+  # Flutter/Gradle than 3.24 (speech_to_text 7.4.0 fails with "unknown property
+  # 'flutter'", flutter_tts 4.2.x later needs compileSdk 36), and
+  # flutter_foreground_task 8.x has a different API than 6.x (see main.dart).
+  # vosk_flutter forces permission_handler 10.x and http 0.13.x.
+  speech_to_text: 7.0.0
+  flutter_tts: 4.2.2
+  flutter_foreground_task: 6.2.0
+  permission_handler: 10.4.5
+  http: 0.13.6
+  vosk_flutter: 0.3.48
 
 flutter:
   uses-material-design: true
