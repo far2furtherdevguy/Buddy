@@ -1,8 +1,5 @@
 """Patches the generated android/ project so old plugins (vosk_flutter,
-permission_handler 10.x) build with AGP 8 / Flutter 3.24. Idempotent.
-
-Also supplies ext.flutter so speech_to_text 7.x (and similar plugins) can
-resolve flutter.compileSdkVersion / flutter.ndkVersion on Flutter 3.24."""
+permission_handler 10.x) build with AGP 8 / Flutter 3.24. Idempotent."""
 import os, re, sys
 
 MANIFEST = 'android/app/src/main/AndroidManifest.xml'
@@ -50,13 +47,6 @@ elif os.path.exists(APP_GRADLE_KTS):
 
 # ---------- 3. root build.gradle: make old plugins AGP-8 compatible ----------
 HOOK = MARK + '''
-ext.flutter = [
-    compileSdkVersion: 34,
-    minSdkVersion: 24,
-    targetSdkVersion: 34,
-    ndkVersion: "25.1.8937393"
-]
-
 allprojects {
     repositories {
         maven { url 'https://alphacephei.com/maven/' }
