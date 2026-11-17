@@ -66,9 +66,9 @@ subprojects { sub ->
                 }
             }
         } catch (Throwable ignored) {}
-        // Plugins compiled against SDK 33 break against newer androidx.
+        // Newer androidx libs (pulled in transitively) require compileSdk 35.
         try {
-            if ((androidExt.compileSdk ?: 0) < 34) androidExt.compileSdk = 34
+            if ((androidExt.compileSdk ?: 0) < 35) androidExt.compileSdk = 35
         } catch (Throwable ignored) {}
         // Keep Java and Kotlin JVM targets identical (avoids "Inconsistent JVM-target").
         try {
@@ -77,6 +77,10 @@ subprojects { sub ->
         } catch (Throwable ignored) {}
         sub.tasks.matching { it.class.name.contains('KotlinCompile') }.configureEach { t ->
             try { t.kotlinOptions.jvmTarget = '17' } catch (Throwable ignored) {}
+            // androidx/other libs may ship newer Kotlin metadata than the compiler expects.
+            try {
+                t.kotlinOptions.freeCompilerArgs = t.kotlinOptions.freeCompilerArgs + ['-Xskip-metadata-version-check']
+            } catch (Throwable ignored) {}
         }
     }
 }
@@ -84,11 +88,41 @@ subprojects { sub ->
 '''
 if os.path.exists(ROOT_GRADLE):
     r = open(ROOT_GRADLE).read()
-    if MARK not in r:
-        open(ROOT_GRADLE, 'w').write(HOOK + '\n' + r)
-        print('root build.gradle patched')
-    else:
-        print('root build.gradle already patched')
+    if MARK in r:  # drop any older copy of our block, then re-insert the current one
+        r = re.sub(re.escape(MARK) + r'.*?// --- end buddy ---\n', '', r, flags=re.S)
+    open(ROOT_GRADLE, 'w').write(HOOK + '\n' + r)
+    print('root build.gradle patched')
 else:
     print('ERROR: android/build.gradle not found (Kotlin DSL?). Pin Flutter 3.24.0.', file=sys.stderr)
     sys.exit(1)
+
+# ---------- 4. Kotlin Gradle plugin: template's 1.8.22 is too old for these plugins ----------
+KOTLIN = '1.9.24'
+done = False
+for f in ('android/settings.gradle', 'android/settings.gradle.kts'):
+    if os.path.exists(f):
+        t = open(f).read()
+        t2 = re.sub(r'(org\.jetbrains\.kotlin\.android["\']\)?\s*version\s*["\'])[0-9][^"\']*(["\'])',
+                    r'\g<1>' + KOTLIN + r'\g<2>', t)
+        open(f, 'w').write(t2)
+        print('kotlin plugin ->', KOTLIN, '(' + f + '):', 'changed' if t != t2 else 'unchanged/not found')
+        done = done or (KOTLIN in t2)
+if os.path.exists(ROOT_GRADLE):  # pre-3.19 style projects
+    t = open(ROOT_GRADLE).read()
+    t2 = re.sub(r"ext\.kotlin_version\s*=\s*['\"][^'\"]+['\"]", "ext.kotlin_version = '" + KOTLIN + "'", t)
+    if t != t2:
+        open(ROOT_GRADLE, 'w').write(t2)
+        print('ext.kotlin_version ->', KOTLIN)
+        done = True
+if not done:
+    print('WARNING: could not find the Kotlin plugin version to bump', file=sys.stderr)
+
+# ---------- 5. gradle.properties ----------
+GP = 'android/gradle.properties'
+props = open(GP).read() if os.path.exists(GP) else ''
+for line in ('android.suppressUnsupportedCompileSdk=35',      # AGP 8.1 + compileSdk 35 warning
+             'android.defaults.buildfeatures.buildconfig=true'):  # old plugins that use BuildConfig
+    if line.split('=')[0] not in props:
+        props += ('' if props.endswith('\n') or not props else '\n') + line + '\n'
+open(GP, 'w').write(props)
+print('gradle.properties patched')
