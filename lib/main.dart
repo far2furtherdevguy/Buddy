@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:isolate';
 import 'package:flutter/material.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -25,12 +26,13 @@ void startCallback() {
 }
 
 class _KeepAliveHandler extends TaskHandler {
+  // flutter_foreground_task 6.x signatures (SendPort-based).
   @override
-  Future<void> onStart(DateTime timestamp, TaskStarter starter) async {}
+  Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {}
   @override
-  void onRepeatEvent(DateTime timestamp) {}
+  Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {}
   @override
-  Future<void> onDestroy(DateTime timestamp) async {}
+  Future<void> onDestroy(DateTime timestamp, SendPort? sendPort) async {}
 }
 
 void main() => runApp(const BuddyApp());
@@ -84,9 +86,12 @@ class _AssistantPageState extends State<AssistantPage> {
         channelDescription: 'Keeps Buddy listening',
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.nothing(),
+      foregroundTaskOptions: const ForegroundTaskOptions(
+        interval: 60000, // nothing to repeat; keep wakeups rare
+        isOnceEvent: false,
+        autoRunOnBoot: false,
         allowWakeLock: true,
+        allowWifiLock: false,
       ),
     );
   }
@@ -141,7 +146,6 @@ class _AssistantPageState extends State<AssistantPage> {
     }
 
     await FlutterForegroundTask.startService(
-      serviceId: 100,
       notificationTitle: 'Buddy is listening',
       notificationText: 'Say "Hey Buddy"',
       callback: startCallback,
