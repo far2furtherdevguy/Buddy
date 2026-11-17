@@ -66,9 +66,10 @@ subprojects { sub ->
                 }
             }
         } catch (Throwable ignored) {}
-        // Newer androidx libs (pulled in transitively) require compileSdk 35.
+        // Never go above 34: AGP 8.1's aapt2 cannot read the android-35 platform jar.
+        // Old plugins that compile against < 34 are raised to 34.
         try {
-            if ((androidExt.compileSdk ?: 0) < 35) androidExt.compileSdk = 35
+            if ((androidExt.compileSdk ?: 0) < 34) androidExt.compileSdk = 34
         } catch (Throwable ignored) {}
         // Keep Java and Kotlin JVM targets identical (avoids "Inconsistent JVM-target").
         try {
@@ -120,8 +121,7 @@ if not done:
 # ---------- 5. gradle.properties ----------
 GP = 'android/gradle.properties'
 props = open(GP).read() if os.path.exists(GP) else ''
-for line in ('android.suppressUnsupportedCompileSdk=35',      # AGP 8.1 + compileSdk 35 warning
-             'android.defaults.buildfeatures.buildconfig=true'):  # old plugins that use BuildConfig
+for line in ('android.defaults.buildfeatures.buildconfig=true',):  # old plugins that use BuildConfig
     if line.split('=')[0] not in props:
         props += ('' if props.endswith('\n') or not props else '\n') + line + '\n'
 open(GP, 'w').write(props)
