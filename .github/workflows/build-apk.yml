@@ -48,7 +48,10 @@ jobs:
         run: python3 tools/patch_android.py
 
       - name: Get dependencies
-        run: flutter pub get
+        run: |
+          flutter pub get
+          echo "--- resolved versions ---"
+          grep -A1 -E "^  (speech_to_text|flutter_tts|flutter_foreground_task|permission_handler|http|vosk_flutter):" pubspec.lock
 
       # --no-shrink: R8 can strip the JNA classes Vosk needs at runtime
       - name: Build APK
