@@ -71,6 +71,14 @@ subprojects { sub ->
         try {
             if ((androidExt.compileSdk ?: 0) < 34) androidExt.compileSdk = 34
         } catch (Throwable ignored) {}
+        // Vosk loads its native libs through JNA. AGP 8 by default leaves .so files
+        // inside the APK, which makes JNA fail to find them and kills the app.
+        try {
+            if (sub.plugins.hasPlugin('com.android.application')) {
+                try { androidExt.packaging.jniLibs.useLegacyPackaging = true }
+                catch (Throwable e1) { androidExt.packagingOptions.jniLibs.useLegacyPackaging = true }
+            }
+        } catch (Throwable ignored) {}
         // Keep Java and Kotlin JVM targets identical (avoids "Inconsistent JVM-target").
         try {
             androidExt.compileOptions.sourceCompatibility = JavaVersion.VERSION_17
